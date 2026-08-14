@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 import 'experiment_analytics.dart';
+import 'video_backend_capabilities.dart';
 import 'video_compression_session.dart';
 import 'video_compressor.dart';
 import 'video_export_policy.dart';
 import 'video_intake_policy.dart';
+import 'video_picker_contract.dart';
+import 'video_selection_controller.dart';
+import 'video_selection_state.dart';
 import 'video_size_estimator.dart';
+import 'video_workflow_gate.dart';
+import 'video_workflow_status.dart';
 
 class VideoCompressPrototypeScreen extends StatefulWidget {
   const VideoCompressPrototypeScreen({super.key});
@@ -96,6 +102,34 @@ class _VideoCompressPrototypeScreenState
     );
   }
 
+  VideoSelectionState workflowSelectionState() {
+    final decision = lastIntakeDecision;
+    if (decision == null || session.source == null) {
+      return const VideoSelectionState.idle();
+    }
+    final picked = PickedVideo(
+      uri: sample.path,
+      fileName: sample.path,
+      sizeBytes: sample.sizeBytes,
+      duration: Duration(milliseconds: sample.durationMs),
+      mimeType: 'video/mp4',
+    );
+    return VideoSelectionState.fromResult(
+      VideoSelectionResult(
+        selection: VideoSelection.selected(picked),
+        intakeDecision: decision,
+      ),
+    );
+  }
+
+  VideoWorkflowStatus workflowStatus(VideoWorkflowMode mode) {
+    return VideoWorkflowStatus.from(
+      mode: mode,
+      selection: workflowSelectionState(),
+      backend: prototypeVideoBackend,
+    );
+  }
+
   void simulateCompression() {
     final source = session.source;
     if (!session.canStart || source == null) return;
@@ -156,12 +190,51 @@ class _VideoCompressPrototypeScreenState
         ExportTarget.archive => 'Archive',
       };
 
+  Widget readinessCard(BuildContext context, VideoWorkflowStatus status) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  status.allowed
+                      ? Icons.check_circle_outline_rounded
+                      : Icons.construction_rounded,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    status.label,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ],
+            ),
+            if (status.details.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              for (final detail in status.details)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('• $detail'),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final result = session.result;
     final source = session.source;
     final policy = VideoExportPolicy.forTarget(exportTarget);
     final estimate = currentEstimate();
+    final prototypeStatus = workflowStatus(VideoWorkflowMode.prototype);
+    final productionStatus = workflowStatus(VideoWorkflowMode.production);
     return Scaffold(
       appBar: AppBar(title: const Text('Video Compress Prototype')),
       body: ListView(
@@ -171,6 +244,10 @@ class _VideoCompressPrototypeScreenState
             'Compress a large video in three taps',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
+          const SizedBox(height: 16),
+          readinessCard(context, prototypeStatus),
+          const SizedBox(height: 8),
+          readinessCard(context, productionStatus),
           const SizedBox(height: 16),
           Card(
             child: ListTile(
