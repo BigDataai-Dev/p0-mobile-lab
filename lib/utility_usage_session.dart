@@ -20,9 +20,9 @@ class UtilityUsageSession {
         rewardedBonusUsesRemaining: rewardedBonusUsesRemaining,
       );
 
-  UtilityUsageSession completeUse() {
+  UtilityUsageSession completeUse(MonetizationPolicy policy) {
     final bonusWasUsed = !premium &&
-        completedUsesToday >= defaultUtilityMonetizationPolicy.freeUsesPerDay &&
+        completedUsesToday >= policy.freeUsesPerDay &&
         rewardedBonusUsesRemaining > 0;
     return UtilityUsageSession(
       completedUsesToday: completedUsesToday + 1,
