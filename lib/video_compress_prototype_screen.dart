@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'experiment_analytics.dart';
 import 'video_compression_session.dart';
 import 'video_compressor.dart';
+import 'video_export_policy.dart';
 
 class VideoCompressPrototypeScreen extends StatefulWidget {
   const VideoCompressPrototypeScreen({super.key});
@@ -12,6 +13,7 @@ class VideoCompressPrototypeScreen extends StatefulWidget {
 class _VideoCompressPrototypeScreenState extends State<VideoCompressPrototypeScreen> {
   static const analytics = DebugExperimentAnalytics();
   VideoCompressionSession session = const VideoCompressionSession();
+  ExportTarget exportTarget = ExportTarget.social;
 
   static const sample = VideoSource(
     path: 'sample_4k_trip.mp4',
@@ -40,6 +42,17 @@ class _VideoCompressPrototypeScreenState extends State<VideoCompressPrototypeScr
   void selectPreset(CompressionPreset preset) {
     analytics.track('compression_preset_selected', {'preset': preset.name});
     setState(() => session = session.selectPreset(preset));
+  }
+
+  void selectExportTarget(ExportTarget target) {
+    final policy = VideoExportPolicy.forTarget(target);
+    analytics.track('export_target_selected', {
+      'target': target.name,
+      'max_width': policy.maxWidth,
+      'max_height': policy.maxHeight,
+      'video_bitrate_kbps': policy.videoBitrateKbps,
+    });
+    setState(() => exportTarget = target);
   }
 
   void simulateCompression() {
@@ -73,20 +86,32 @@ class _VideoCompressPrototypeScreenState extends State<VideoCompressPrototypeScr
   void simulateExport() {
     final result = session.result;
     if (result == null) return;
+    final policy = VideoExportPolicy.forTarget(exportTarget);
     analytics.track('compressed_video_exported', {
       'preset': session.preset.name,
+      'target': exportTarget.name,
       'output_size_bytes': result.sizeBytes,
+      'max_width': policy.maxWidth,
+      'max_height': policy.maxHeight,
+      'video_bitrate_kbps': policy.videoBitrateKbps,
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Prototype export completed')),
+      SnackBar(content: Text('Prototype export ready for ${exportTarget.name}')),
     );
   }
 
   String mb(int bytes) => '${(bytes / 1000000).toStringAsFixed(1)} MB';
 
+  String targetLabel(ExportTarget target) => switch (target) {
+        ExportTarget.messaging => 'Messaging',
+        ExportTarget.social => 'Social',
+        ExportTarget.archive => 'Archive',
+      };
+
   @override
   Widget build(BuildContext context) {
     final result = session.result;
+    final policy = VideoExportPolicy.forTarget(exportTarget);
     return Scaffold(
       appBar: AppBar(title: const Text('Video Compress Prototype')),
       body: ListView(
@@ -113,6 +138,21 @@ class _VideoCompressPrototypeScreenState extends State<VideoCompressPrototypeScr
             onSelectionChanged: (value) => selectPreset(value.first),
           ),
           const SizedBox(height: 20),
+          Text('Export for', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          SegmentedButton<ExportTarget>(
+            segments: ExportTarget.values
+                .map((target) => ButtonSegment(value: target, label: Text(targetLabel(target))))
+                .toList(),
+            selected: {exportTarget},
+            onSelectionChanged: (value) => selectExportTarget(value.first),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Target: ${policy.maxWidth}×${policy.maxHeight} · ${policy.videoBitrateKbps} kbps video',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 20),
           if (result != null)
             Card(
               child: Padding(
@@ -125,7 +165,7 @@ class _VideoCompressPrototypeScreenState extends State<VideoCompressPrototypeScr
                     FilledButton.tonalIcon(
                       onPressed: simulateExport,
                       icon: const Icon(Icons.ios_share_rounded),
-                      label: const Text('Export result'),
+                      label: Text('Export for ${targetLabel(exportTarget)}'),
                     ),
                   ],
                 ),
