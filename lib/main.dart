@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'candidates.dart';
 import 'validation_gate.dart';
+import 'video_compress_prototype_screen.dart';
 
 void main() => runApp(const MobileLabApp());
 
@@ -46,6 +47,20 @@ class LabHomeScreen extends StatelessWidget {
                         ? 'Keep validating. Do not spend implementation time yet.'
                         : '${winner.problem}\nScore ${winner.score.toStringAsFixed(2)} · Organic ${winner.organicIntent}/10 · Repeat ${winner.repeatUse}/10 · Monetization ${winner.monetization}/10 · Simplicity ${winner.buildSimplicity}/10',
                   ),
+                  if (winner?.name == 'Video Compress') ...[
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const VideoCompressPrototypeScreen(),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('Open UX prototype'),
+                    ),
+                  ],
                 ],
               ),
             ),
