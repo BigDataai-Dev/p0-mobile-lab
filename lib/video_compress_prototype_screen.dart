@@ -3,6 +3,7 @@ import 'experiment_analytics.dart';
 import 'video_compression_session.dart';
 import 'video_compressor.dart';
 import 'video_export_policy.dart';
+import 'video_size_estimator.dart';
 
 class VideoCompressPrototypeScreen extends StatefulWidget {
   const VideoCompressPrototypeScreen({super.key});
@@ -12,6 +13,7 @@ class VideoCompressPrototypeScreen extends StatefulWidget {
 
 class _VideoCompressPrototypeScreenState extends State<VideoCompressPrototypeScreen> {
   static const analytics = DebugExperimentAnalytics();
+  static const estimator = VideoSizeEstimator();
   VideoCompressionSession session = const VideoCompressionSession();
   ExportTarget exportTarget = ExportTarget.social;
 
@@ -55,23 +57,36 @@ class _VideoCompressPrototypeScreenState extends State<VideoCompressPrototypeScr
     setState(() => exportTarget = target);
   }
 
+  VideoSizeEstimate? currentEstimate() {
+    final source = session.source;
+    if (source == null) return null;
+    return estimator.estimate(
+      source: source,
+      policy: VideoExportPolicy.forTarget(exportTarget),
+      preset: session.preset,
+    );
+  }
+
   void simulateCompression() {
     if (!session.canStart) return;
+    final policy = VideoExportPolicy.forTarget(exportTarget);
+    final estimate = estimator.estimate(
+      source: sample,
+      policy: policy,
+      preset: session.preset,
+    );
     analytics.track('compression_started', {
       'preset': session.preset.name,
       'input_size_bytes': sample.sizeBytes,
+      'estimated_output_bytes': estimate.bytes,
+      'target': exportTarget.name,
     });
 
-    final factor = switch (session.preset) {
-      CompressionPreset.small => 0.28,
-      CompressionPreset.balanced => 0.43,
-      CompressionPreset.highQuality => 0.64,
-    };
     final compressed = CompressedVideo(
       path: 'sample_4k_trip_compressed.mp4',
-      sizeBytes: (sample.sizeBytes * factor).round(),
-      width: session.preset == CompressionPreset.small ? 1280 : 1920,
-      height: session.preset == CompressionPreset.small ? 720 : 1080,
+      sizeBytes: estimate.bytes,
+      width: policy.maxWidth,
+      height: policy.maxHeight,
     );
 
     setState(() => session = session.start().complete(compressed));
@@ -112,6 +127,7 @@ class _VideoCompressPrototypeScreenState extends State<VideoCompressPrototypeScr
   Widget build(BuildContext context) {
     final result = session.result;
     final policy = VideoExportPolicy.forTarget(exportTarget);
+    final estimate = currentEstimate();
     return Scaffold(
       appBar: AppBar(title: const Text('Video Compress Prototype')),
       body: ListView(
@@ -152,6 +168,16 @@ class _VideoCompressPrototypeScreenState extends State<VideoCompressPrototypeScr
             'Target: ${policy.maxWidth}×${policy.maxHeight} · ${policy.videoBitrateKbps} kbps video',
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          if (estimate != null && result == null) ...[
+            const SizedBox(height: 12),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.insights_rounded),
+                title: Text('Estimated output: ${mb(estimate.bytes)}'),
+                subtitle: Text('About ${(estimate.reductionRatio * 100).round()}% smaller before encoding'),
+              ),
+            ),
+          ],
           const SizedBox(height: 20),
           if (result != null)
             Card(
