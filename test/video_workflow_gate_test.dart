@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:p0_mobile_lab/video_backend_capabilities.dart';
+import 'package:p0_mobile_lab/video_intake_policy.dart';
 import 'package:p0_mobile_lab/video_picker_contract.dart';
 import 'package:p0_mobile_lab/video_selection_controller.dart';
 import 'package:p0_mobile_lab/video_selection_state.dart';
@@ -16,15 +17,15 @@ void main() {
   );
 
   VideoSelectionState readyState() {
-    final video = PickedVideo(
-      path: '/tmp/sample.mp4',
-      name: 'sample.mp4',
+    const video = PickedVideo(
+      uri: '/tmp/sample.mp4',
+      fileName: 'sample.mp4',
       sizeBytes: 10 * 1024 * 1024,
-      durationSeconds: 30,
+      duration: Duration(seconds: 30),
     );
     return VideoSelectionState.fromResult(
       VideoSelectionResult(
-        selection: VideoPickerResult.selected(video),
+        selection: VideoSelection.selected(video),
         intakeDecision: const VideoIntakeDecision.accepted(),
       ),
     );
