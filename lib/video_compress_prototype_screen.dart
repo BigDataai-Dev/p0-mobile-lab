@@ -9,6 +9,7 @@ import 'video_picker_contract.dart';
 import 'video_selection_controller.dart';
 import 'video_selection_state.dart';
 import 'video_size_estimator.dart';
+import 'video_value_estimate.dart';
 import 'video_workflow_gate.dart';
 import 'video_workflow_status.dart';
 
@@ -102,6 +103,16 @@ class _VideoCompressPrototypeScreenState
     );
   }
 
+  VideoValueEstimate? currentValueEstimate() {
+    final source = session.source;
+    final estimate = currentEstimate();
+    if (source == null || estimate == null) return null;
+    return VideoValueEstimate(
+      originalBytes: source.sizeBytes,
+      estimatedBytes: estimate.bytes,
+    );
+  }
+
   VideoSelectionState workflowSelectionState() {
     final decision = lastIntakeDecision;
     if (decision == null || session.source == null) {
@@ -139,11 +150,16 @@ class _VideoCompressPrototypeScreenState
       policy: policy,
       preset: session.preset,
     );
+    final value = VideoValueEstimate(
+      originalBytes: source.sizeBytes,
+      estimatedBytes: estimate.bytes,
+    );
     analytics.track('compression_started', {
       'preset': session.preset.name,
       'input_size_bytes': source.sizeBytes,
       'estimated_output_bytes': estimate.bytes,
       'target': exportTarget.name,
+      ...value.toAnalytics(),
     });
 
     final compressed = CompressedVideo(
@@ -158,15 +174,20 @@ class _VideoCompressPrototypeScreenState
       'preset': session.preset.name,
       'input_size_bytes': source.sizeBytes,
       'output_size_bytes': compressed.sizeBytes,
-      'reduction_percent':
-          ((1 - (compressed.sizeBytes / source.sizeBytes)) * 100).round(),
+      'target': exportTarget.name,
+      ...value.toAnalytics(),
     });
   }
 
   void simulateExport() {
     final result = session.result;
-    if (result == null) return;
+    final source = session.source;
+    if (result == null || source == null) return;
     final policy = VideoExportPolicy.forTarget(exportTarget);
+    final value = VideoValueEstimate(
+      originalBytes: source.sizeBytes,
+      estimatedBytes: result.sizeBytes,
+    );
     analytics.track('compressed_video_exported', {
       'preset': session.preset.name,
       'target': exportTarget.name,
@@ -174,10 +195,13 @@ class _VideoCompressPrototypeScreenState
       'max_width': policy.maxWidth,
       'max_height': policy.maxHeight,
       'video_bitrate_kbps': policy.videoBitrateKbps,
+      ...value.toAnalytics(),
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Prototype export ready for ${exportTarget.name}'),
+        content: Text(
+          'Saved ${mb(value.savedBytes)} · export ready for ${exportTarget.name}',
+        ),
       ),
     );
   }
@@ -233,6 +257,7 @@ class _VideoCompressPrototypeScreenState
     final source = session.source;
     final policy = VideoExportPolicy.forTarget(exportTarget);
     final estimate = currentEstimate();
+    final value = currentValueEstimate();
     final prototypeStatus = workflowStatus(VideoWorkflowMode.prototype);
     final productionStatus = workflowStatus(VideoWorkflowMode.production);
     return Scaffold(
@@ -312,38 +337,51 @@ class _VideoCompressPrototypeScreenState
             'Target: ${policy.maxWidth}×${policy.maxHeight} · ${policy.videoBitrateKbps} kbps video',
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          if (estimate != null && result == null) ...[
+          if (estimate != null && value != null && result == null) ...[
             const SizedBox(height: 12),
             Card(
               child: ListTile(
                 leading: const Icon(Icons.insights_rounded),
-                title: Text('Estimated output: ${mb(estimate.bytes)}'),
+                title: Text(value.headline),
                 subtitle: Text(
-                  'About ${(estimate.reductionRatio * 100).round()}% smaller before encoding',
+                  '${mb(source!.sizeBytes)} → ~${mb(estimate.bytes)} · save ~${mb(value.savedBytes)} (${value.savingsPercent}%)',
                 ),
               ),
             ),
           ],
           const SizedBox(height: 20),
-          if (result != null)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      '${mb(source?.sizeBytes ?? sample.sizeBytes)} → ${mb(result.sizeBytes)} · ${((session.reductionRatio ?? 0) * 100).round()}% smaller',
+          if (result != null && source != null)
+            Builder(
+              builder: (context) {
+                final completedValue = VideoValueEstimate(
+                  originalBytes: source.sizeBytes,
+                  estimatedBytes: result.sizeBytes,
+                );
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          completedValue.headline,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${mb(source.sizeBytes)} → ${mb(result.sizeBytes)} · saved ${mb(completedValue.savedBytes)} (${completedValue.savingsPercent}%)',
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonalIcon(
+                          onPressed: simulateExport,
+                          icon: const Icon(Icons.ios_share_rounded),
+                          label: Text('Export for ${targetLabel(exportTarget)}'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 12),
-                    FilledButton.tonalIcon(
-                      onPressed: simulateExport,
-                      icon: const Icon(Icons.ios_share_rounded),
-                      label: Text('Export for ${targetLabel(exportTarget)}'),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
           const SizedBox(height: 20),
           FilledButton.icon(
