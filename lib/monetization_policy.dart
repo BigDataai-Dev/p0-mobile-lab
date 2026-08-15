@@ -20,7 +20,12 @@ class MonetizationPolicy {
     if (completedUsesToday < freeUsesPerDay) {
       return MonetizationAction.allowFree;
     }
-    if (rewardedEnabled && rewardedBonusUsesRemaining > 0) {
+    if (rewardedBonusUsesRemaining > 0) {
+      return MonetizationAction.allowFree;
+    }
+    final rewardedQuotaNotConsumed =
+        completedUsesToday < freeUsesPerDay + rewardedBonusUses;
+    if (rewardedEnabled && rewardedBonusUses > 0 && rewardedQuotaNotConsumed) {
       return MonetizationAction.offerRewarded;
     }
     return MonetizationAction.requirePremium;
@@ -35,6 +40,7 @@ class MonetizationPolicy {
         'premium': premium,
         'rewarded_bonus_remaining': rewardedBonusUsesRemaining,
         'free_daily_quota': freeUsesPerDay,
+        'rewarded_bonus_quota': rewardedBonusUses,
       };
 }
 
