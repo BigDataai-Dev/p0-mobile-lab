@@ -35,7 +35,7 @@ void main() {
     expect(restored.accessState.freeUsesRemaining, 1);
   });
 
-  test('rewarded bonus is consumed after free quota', () async {
+  test('rewarded offer grants one immediately usable bonus', () async {
     const policy = MonetizationPolicy(freeUsesPerDay: 1, rewardedBonusUses: 1);
     final controller = UtilityUsageController(
       store: UtilityUsageStore(storageKey: 'test.rewarded'),
@@ -44,10 +44,11 @@ void main() {
     await controller.bootstrap(DateTime(2026, 8, 15));
 
     await controller.recordCompletedUse();
-    expect(controller.accessState.action, MonetizationAction.requirePremium);
+    expect(controller.accessState.action, MonetizationAction.offerRewarded);
 
     await controller.grantRewardedBonus();
-    expect(controller.accessState.action, MonetizationAction.offerRewarded);
+    expect(controller.accessState.action, MonetizationAction.allowFree);
+    expect(controller.accessState.usingRewardedBonus, isTrue);
 
     await controller.recordCompletedUse();
     expect(controller.session?.rewardedBonusUsesRemaining, 0);
