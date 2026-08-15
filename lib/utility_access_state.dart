@@ -21,13 +21,19 @@ class UtilityAccessState {
   bool get canRunImmediately =>
       action == MonetizationAction.allowFree || premium;
 
+  bool get usingRewardedBonus =>
+      !premium && freeUsesRemaining == 0 && rewardedBonusUsesRemaining > 0;
+
   String get badge {
     if (premium) return 'Premium';
+    if (usingRewardedBonus) {
+      return '$rewardedBonusUsesRemaining bonus ready';
+    }
     switch (action) {
       case MonetizationAction.allowFree:
         return '$freeUsesRemaining free today';
       case MonetizationAction.offerRewarded:
-        return 'Bonus available';
+        return 'Watch ad for 1 more';
       case MonetizationAction.requirePremium:
         return 'Daily limit reached';
     }
