@@ -13,10 +13,10 @@ void main() {
     expect(session.action(policy), MonetizationAction.allowFree);
 
     session = session.completeUse(policy).completeUse(policy);
-    expect(session.action(policy), MonetizationAction.requirePremium);
+    expect(session.action(policy), MonetizationAction.offerRewarded);
 
     session = session.grantRewardedBonus();
-    expect(session.action(policy), MonetizationAction.offerRewarded);
+    expect(session.action(policy), MonetizationAction.allowFree);
 
     session = session.completeUse(policy);
     expect(session.rewardedBonusUsesRemaining, 0);
